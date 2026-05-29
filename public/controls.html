@@ -2,11 +2,15 @@
 <html>
 <head>
   <title>Reactor Controls</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
+    html, body {
       height: 100vh;
+      overflow: hidden;
+      touch-action: none;  /* prevent pull-to-refresh and zoom */
+    }
+    body {
       background: #0a0e14;
       color: #e0e0e0;
       font-family: -apple-system, sans-serif;
@@ -37,6 +41,7 @@
       align-items: center;
       justify-content: center;
       gap: 20px;
+      user-select: none;
     }
     .label {
       font-size: 14px;
@@ -51,23 +56,44 @@
     }
     .unit { font-size: 18px; color: #6b7888; }
 
-    /* RPM Slider */
-    input[type="range"] {
+    /* Custom slider — easier to touch than native */
+    .sliderContainer {
       width: 100%;
-      height: 50px;
-      -webkit-appearance: none;
+      height: 80px;
       background: #1f2630;
-      border-radius: 25px;
-      outline: none;
+      border-radius: 40px;
+      position: relative;
+      cursor: pointer;
+      touch-action: none;
     }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      width: 60px;
-      height: 60px;
+    .sliderTrack {
+      position: absolute;
+      top: 50%;
+      left: 30px;
+      right: 30px;
+      height: 6px;
+      background: #2a3441;
+      border-radius: 3px;
+      transform: translateY(-50%);
+    }
+    .sliderFill {
+      position: absolute;
+      top: 0;
+      left: 0;
+      height: 100%;
+      background: #4dd0e1;
+      border-radius: 3px;
+    }
+    .sliderThumb {
+      position: absolute;
+      top: 50%;
+      width: 70px;
+      height: 70px;
       background: #4dd0e1;
       border-radius: 50%;
-      cursor: pointer;
-      box-shadow: 0 0 20px rgba(77, 208, 225, 0.5);
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 25px rgba(77, 208, 225, 0.6);
+      pointer-events: none;
     }
 
     /* Knob */
@@ -81,6 +107,7 @@
       cursor: pointer;
       touch-action: none;
       box-shadow: 0 0 30px rgba(77, 208, 225, 0.2);
+      user-select: none;
     }
     .knob::after {
       content: '';
@@ -92,7 +119,7 @@
       background: #4dd0e1;
       transform: translateX(-50%);
       border-radius: 2px;
-      transform-origin: 50% 60px;
+      pointer-events: none;
     }
   </style>
 </head>
@@ -100,11 +127,16 @@
   <h1>BIOREACTOR CONTROLS</h1>
 
   <div class="controlsGrid">
-    <!-- RPM Slider -->
+    <!-- RPM Slider (custom-built for touch reliability) -->
     <div class="panel">
       <div class="label">RPM</div>
       <div class="value"><span id="rpmValue">200</span></div>
-      <input type="range" min="0" max="600" value="200" id="rpmSlider">
+      <div class="sliderContainer" id="rpmSlider">
+        <div class="sliderTrack">
+          <div class="sliderFill" id="rpmFill"></div>
+        </div>
+        <div class="sliderThumb" id="rpmThumb"></div>
+      </div>
     </div>
 
     <!-- Viscosity Knob -->
@@ -132,62 +164,111 @@
       }
     }
 
-    // --- RPM slider ---
-    const rpmSlider = document.getElementById('rpmSlider');
-    const rpmValue = document.getElementById('rpmValue');
-    rpmSlider.addEventListener('input', () => {
-      state.rpm = parseInt(rpmSlider.value);
-      rpmValue.textContent = state.rpm;
+    // ============ CUSTOM SLIDER (works with both mouse + touch) ============
+    const sliderEl = document.getElementById('rpmSlider');
+    const fillEl = document.getElementById('rpmFill');
+    const thumbEl = document.getElementById('rpmThumb');
+    const rpmValueEl = document.getElementById('rpmValue');
+
+    const RPM_MIN = 0, RPM_MAX = 600;
+
+    function updateSliderUI(value) {
+      const pct = (value - RPM_MIN) / (RPM_MAX - RPM_MIN);
+      const containerRect = sliderEl.getBoundingClientRect();
+      const trackPadding = 30;
+      const trackWidth = containerRect.width - (trackPadding * 2);
+      const thumbX = trackPadding + (pct * trackWidth);
+      thumbEl.style.left = `${thumbX}px`;
+      fillEl.style.width = `${pct * 100}%`;
+      rpmValueEl.textContent = Math.round(value);
+    }
+
+    function setRpmFromTouch(clientX) {
+      const rect = sliderEl.getBoundingClientRect();
+      const trackPadding = 30;
+      const x = clientX - rect.left - trackPadding;
+      const trackWidth = rect.width - (trackPadding * 2);
+      const pct = Math.max(0, Math.min(1, x / trackWidth));
+      const value = RPM_MIN + pct * (RPM_MAX - RPM_MIN);
+      state.rpm = Math.round(value);
+      updateSliderUI(state.rpm);
       sendState();
+    }
+
+    let sliderDragging = false;
+
+    // Use pointer events — unified mouse + touch handling
+    sliderEl.addEventListener('pointerdown', (e) => {
+      sliderDragging = true;
+      sliderEl.setPointerCapture(e.pointerId);
+      setRpmFromTouch(e.clientX);
+      e.preventDefault();
     });
 
-    // --- Knob behavior (drag up/down to change value) ---
+    sliderEl.addEventListener('pointermove', (e) => {
+      if (!sliderDragging) return;
+      setRpmFromTouch(e.clientX);
+      e.preventDefault();
+    });
+
+    sliderEl.addEventListener('pointerup', (e) => {
+      sliderDragging = false;
+      sliderEl.releasePointerCapture(e.pointerId);
+    });
+
+    sliderEl.addEventListener('pointercancel', () => {
+      sliderDragging = false;
+    });
+
+    // Init slider position
+    requestAnimationFrame(() => updateSliderUI(state.rpm));
+
+    // ============ KNOBS (drag up/down) ============
     function setupKnob(knobEl, valueEl, stateKey, decimals = 1) {
       const min = parseFloat(knobEl.dataset.min);
       const max = parseFloat(knobEl.dataset.max);
       let value = parseFloat(knobEl.dataset.value);
 
       function updateRotation() {
-        // Map value to rotation (-135deg to +135deg, 270deg sweep)
-        const pct = (value - min) / (max - min);
-        const deg = -135 + pct * 270;
-        knobEl.style.setProperty('--rot', `${deg}deg`);
-        knobEl.querySelector ? null : null;
-        // We need to set rotation on the ::after pseudo element via CSS variable trick
-        knobEl.style.transform = '';
-        knobEl.style.setProperty('--knob-rot', `${deg}deg`);
-      }
-
-      let startY = 0, startValue = 0, dragging = false;
-
-      const onStart = (e) => {
-        dragging = true;
-        startY = (e.touches ? e.touches[0].clientY : e.clientY);
-        startValue = value;
-        e.preventDefault();
-      };
-      const onMove = (e) => {
-        if (!dragging) return;
-        const y = (e.touches ? e.touches[0].clientY : e.clientY);
-        const deltaY = startY - y;  // up = increase
-        const range = max - min;
-        const newValue = startValue + (deltaY / 200) * range;
-        value = Math.max(min, Math.min(max, newValue));
-        valueEl.textContent = value.toFixed(decimals);
-        // Rotate the indicator using inline rotation on a child
         const angle = -135 + ((value - min) / (max - min)) * 270;
         knobEl.style.transform = `rotate(${angle}deg)`;
+        valueEl.textContent = value.toFixed(decimals);
+      }
+
+      let startY = 0;
+      let startValue = 0;
+      let dragging = false;
+
+      knobEl.addEventListener('pointerdown', (e) => {
+        dragging = true;
+        startY = e.clientY;
+        startValue = value;
+        knobEl.setPointerCapture(e.pointerId);
+        e.preventDefault();
+      });
+
+      knobEl.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const deltaY = startY - e.clientY;  // up = increase
+        const range = max - min;
+        const newValue = startValue + (deltaY / 150) * range;
+        value = Math.max(min, Math.min(max, newValue));
+        updateRotation();
         state[stateKey] = parseFloat(value.toFixed(decimals));
         sendState();
-      };
-      const onEnd = () => { dragging = false; };
+        e.preventDefault();
+      });
 
-      knobEl.addEventListener('mousedown', onStart);
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onEnd);
-      knobEl.addEventListener('touchstart', onStart);
-      document.addEventListener('touchmove', onMove, { passive: false });
-      document.addEventListener('touchend', onEnd);
+      knobEl.addEventListener('pointerup', (e) => {
+        dragging = false;
+        knobEl.releasePointerCapture(e.pointerId);
+      });
+
+      knobEl.addEventListener('pointercancel', () => {
+        dragging = false;
+      });
+
+      updateRotation();
     }
 
     setupKnob(
@@ -201,13 +282,12 @@
       'aeration', 1
     );
 
-    // Listen for state updates from server (in case display also drives state somehow)
+    // Listen for state updates from server
     ws.onmessage = (event) => {
       const s = JSON.parse(event.data);
-      if (s.rpm !== undefined) {
+      if (s.rpm !== undefined && !sliderDragging) {
         state.rpm = s.rpm;
-        rpmSlider.value = s.rpm;
-        rpmValue.textContent = s.rpm;
+        updateSliderUI(s.rpm);
       }
     };
   </script>
