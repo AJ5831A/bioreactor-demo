@@ -26,7 +26,6 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
 
-    // Portrait orientation for the 7" screen (rotated 90deg in real Pi config)
     canvas.width = 600;
     canvas.height = 1024;
 
@@ -37,7 +36,6 @@
       state = { ...state, ...JSON.parse(event.data) };
     };
 
-    // === Particle system ===
     const PARTICLE_COUNT = 250;
     const particles = [];
 
@@ -54,7 +52,6 @@
     }
     initParticles();
 
-    // === Bubbles for aeration ===
     const bubbles = [];
 
     function spawnBubble() {
@@ -66,7 +63,6 @@
       });
     }
 
-    // === Agitator ===
     let agitatorAngle = 0;
 
     function drawAgitator() {
@@ -77,25 +73,20 @@
 
       ctx.save();
 
-      // Shaft
       ctx.fillStyle = '#888';
       ctx.fillRect(cx - 6, 50, 12, canvas.height - 100);
 
-      // Top motor housing
       ctx.fillStyle = '#444';
       ctx.fillRect(cx - 40, 20, 80, 50);
 
-      // Draw three Rushton impellers
       [impellerY1, impellerY2, impellerY3].forEach((y) => {
         ctx.save();
         ctx.translate(cx, y);
         ctx.rotate(agitatorAngle);
-        // Hub
         ctx.fillStyle = '#999';
         ctx.beginPath();
         ctx.arc(0, 0, 14, 0, Math.PI * 2);
         ctx.fill();
-        // 6 blades (Rushton style)
         for (let i = 0; i < 6; i++) {
           ctx.save();
           ctx.rotate((i * Math.PI * 2) / 6);
@@ -109,14 +100,10 @@
       ctx.restore();
     }
 
-    // === Velocity field calculation ===
-    // The flow field swirls around each impeller. Higher RPM = stronger swirl.
-    // Higher viscosity = damped (less velocity for same RPM).
     function getFlowVelocity(x, y) {
       const cx = canvas.width / 2;
       const impellerYs = [canvas.height * 0.30, canvas.height * 0.55, canvas.height * 0.80];
 
-      // Effective velocity = RPM / viscosity (simplified)
       const speedFactor = (state.rpm / 600) / Math.sqrt(state.viscosity);
 
       let vx = 0, vy = 0;
@@ -127,12 +114,10 @@
         const dist = Math.sqrt(dx*dx + dy*dy);
         if (dist < 5) return;
 
-        // Tangential swirl component (perpendicular to radius)
         const swirl = speedFactor * 80 / (1 + dist * 0.02);
         vx += -dy / dist * swirl;
         vy += dx / dist * swirl;
 
-        // Radial outward push near impeller (Rushton characteristic)
         const radial = speedFactor * 30 * Math.exp(-Math.abs(dy) * 0.05);
         vx += dx / (dist + 1) * radial;
       });
@@ -140,19 +125,16 @@
       return { vx, vy };
     }
 
-    // === Color field based on velocity magnitude ===
     function getColorAt(x, y) {
       const { vx, vy } = getFlowVelocity(x, y);
       const mag = Math.sqrt(vx*vx + vy*vy);
-      // Map magnitude to hue (blue=slow → red=fast)
       const hue = Math.max(0, 240 - mag * 4);
       const alpha = Math.min(0.6, mag * 0.015);
       return { hue, alpha };
     }
 
-    // === Render velocity field as a colored background ===
     let fieldCanvas = document.createElement('canvas');
-    fieldCanvas.width = 60;  // low-res for speed, then scale up
+    fieldCanvas.width = 60;
     fieldCanvas.height = 100;
     const fieldCtx = fieldCanvas.getContext('2d');
 
@@ -165,7 +147,6 @@
           const x = (px / fw) * canvas.width;
           const y = (py / fh) * canvas.height;
           const { hue, alpha } = getColorAt(x, y);
-          // hsl → rgb (approx)
           const h = hue / 60;
           const c = 1;
           const xx = c * (1 - Math.abs((h % 2) - 1));
@@ -186,7 +167,6 @@
       fieldCtx.putImageData(imageData, 0, 0);
     }
 
-    // === Update particle positions based on flow field ===
     function updateParticles() {
       const damping = 1 / (1 + state.viscosity * 0.3);
       particles.forEach((p) => {
@@ -197,7 +177,6 @@
         p.y += p.vy * damping;
         p.life -= 0.005;
 
-        // Respawn particles that drift out or die
         if (p.x < 0 || p.x > canvas.width || p.y < 0 || p.y > canvas.height || p.life <= 0) {
           p.x = Math.random() * canvas.width;
           p.y = Math.random() * canvas.height;
@@ -218,15 +197,13 @@
       });
     }
 
-    // === Bubbles for aeration ===
     function updateBubbles() {
-      // Spawn new based on aeration rate
       if (Math.random() < state.aeration * 0.3) spawnBubble();
 
       for (let i = bubbles.length - 1; i >= 0; i--) {
         const b = bubbles[i];
         b.y += b.vy;
-        b.x += (Math.random() - 0.5) * 0.5;  // wobble
+        b.x += (Math.random() - 0.5) * 0.5;
         if (b.y < 0) bubbles.splice(i, 1);
       }
     }
@@ -242,37 +219,33 @@
       });
     }
 
-    // === Reactor outline (subtle frame) ===
     function drawReactor() {
       ctx.strokeStyle = 'rgba(150, 200, 220, 0.3)';
       ctx.lineWidth = 4;
       ctx.beginPath();
-      ctx.roundRect(20, 20, canvas.width - 40, canvas.height - 40, 30);
+      if (ctx.roundRect) {
+        ctx.roundRect(20, 20, canvas.width - 40, canvas.height - 40, 30);
+      } else {
+        ctx.rect(20, 20, canvas.width - 40, canvas.height - 40);
+      }
       ctx.stroke();
     }
 
-    // === Main loop ===
     let frameCount = 0;
     function animate() {
-      // Background
       ctx.fillStyle = 'rgba(0, 5, 15, 1)';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-      // Update field colors every 4 frames (it's expensive)
       if (frameCount % 4 === 0) renderField();
-      // Draw upscaled field as background
       ctx.drawImage(fieldCanvas, 0, 0, canvas.width, canvas.height);
 
-      // Particles + bubbles
       updateParticles();
       drawParticles();
       updateBubbles();
       drawBubbles();
 
-      // Reactor frame
       drawReactor();
 
-      // Agitator on top (rotates based on RPM)
       const radiansPerFrame = (state.rpm / 60) * (Math.PI * 2) / 60;
       agitatorAngle += radiansPerFrame;
       drawAgitator();

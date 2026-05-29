@@ -8,11 +8,10 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static('public'));
 
-// Shared state — three variables now
 let state = {
-  rpm: 200,         // 0-600
-  viscosity: 1.0,   // 0.5-10 cP
-  aeration: 0.5,    // 0-2 vvm
+  rpm: 200,
+  viscosity: 1.0,
+  aeration: 0.5,
 };
 
 wss.on('connection', (ws) => {

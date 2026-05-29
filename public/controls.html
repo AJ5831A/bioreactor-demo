@@ -7,20 +7,25 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body {
       height: 100vh;
+      width: 100vw;
       overflow: hidden;
-      touch-action: none;  /* prevent pull-to-refresh and zoom */
+      position: fixed;
+      touch-action: none;
+      overscroll-behavior: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
     }
     body {
       background: #0a0e14;
       color: #e0e0e0;
       font-family: -apple-system, sans-serif;
-      padding: 30px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
-      gap: 30px;
+      gap: 20px;
     }
     h1 {
-      font-size: 28px;
+      font-size: 26px;
       font-weight: 300;
       color: #4dd0e1;
       letter-spacing: 2px;
@@ -28,86 +33,110 @@
     .controlsGrid {
       display: grid;
       grid-template-columns: 1.5fr 1fr 1fr;
-      gap: 30px;
+      gap: 20px;
       flex: 1;
     }
     .panel {
       background: #141a23;
       border: 1px solid #2a3441;
       border-radius: 16px;
-      padding: 30px;
+      padding: 24px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
-      gap: 20px;
+      justify-content: space-between;
+      gap: 16px;
       user-select: none;
     }
     .label {
-      font-size: 14px;
+      font-size: 13px;
       letter-spacing: 3px;
       color: #6b7888;
       text-transform: uppercase;
     }
     .value {
-      font-size: 56px;
+      font-size: 52px;
       font-weight: 200;
       color: #4dd0e1;
+      line-height: 1;
     }
-    .unit { font-size: 18px; color: #6b7888; }
+    .unit { font-size: 16px; color: #6b7888; margin-left: 4px; }
 
-    /* Custom slider — easier to touch than native */
-    .sliderContainer {
+    .sliderVisual {
       width: 100%;
-      height: 80px;
+      height: 14px;
       background: #1f2630;
-      border-radius: 40px;
+      border-radius: 7px;
       position: relative;
-      cursor: pointer;
-      touch-action: none;
-    }
-    .sliderTrack {
-      position: absolute;
-      top: 50%;
-      left: 30px;
-      right: 30px;
-      height: 6px;
-      background: #2a3441;
-      border-radius: 3px;
-      transform: translateY(-50%);
+      overflow: visible;
     }
     .sliderFill {
       position: absolute;
       top: 0;
       left: 0;
       height: 100%;
-      background: #4dd0e1;
-      border-radius: 3px;
+      background: linear-gradient(90deg, #4dd0e1, #4dd0e1cc);
+      border-radius: 7px;
+      transition: width 0.2s ease;
     }
     .sliderThumb {
       position: absolute;
       top: 50%;
-      width: 70px;
-      height: 70px;
+      width: 28px;
+      height: 28px;
       background: #4dd0e1;
       border-radius: 50%;
       transform: translate(-50%, -50%);
-      box-shadow: 0 0 25px rgba(77, 208, 225, 0.6);
-      pointer-events: none;
+      box-shadow: 0 0 20px rgba(77, 208, 225, 0.6);
+      transition: left 0.2s ease;
     }
 
-    /* Knob */
+    .buttonRow {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+      justify-content: center;
+    }
+    .btn {
+      background: #1f2630;
+      border: 2px solid #2a3441;
+      color: #4dd0e1;
+      font-size: 22px;
+      font-weight: 400;
+      padding: 14px 0;
+      border-radius: 12px;
+      cursor: pointer;
+      flex: 1;
+      min-height: 60px;
+      transition: background 0.1s, transform 0.1s;
+      touch-action: manipulation;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn:active {
+      background: #2a3441;
+      transform: scale(0.96);
+    }
+    .btn.big {
+      font-size: 26px;
+      font-weight: 300;
+    }
+
+    .knobContainer {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
     .knob {
-      width: 140px;
-      height: 140px;
+      width: 120px;
+      height: 120px;
       border-radius: 50%;
       background: radial-gradient(circle at 30% 30%, #2a3441, #141a23);
       border: 3px solid #4dd0e1;
       position: relative;
-      cursor: pointer;
-      touch-action: none;
       box-shadow: 0 0 30px rgba(77, 208, 225, 0.2);
-      user-select: none;
+      transition: transform 0.2s ease;
     }
     .knob::after {
       content: '';
@@ -115,11 +144,10 @@
       top: 8px;
       left: 50%;
       width: 4px;
-      height: 30px;
+      height: 26px;
       background: #4dd0e1;
       transform: translateX(-50%);
       border-radius: 2px;
-      pointer-events: none;
     }
   </style>
 </head>
@@ -127,30 +155,43 @@
   <h1>BIOREACTOR CONTROLS</h1>
 
   <div class="controlsGrid">
-    <!-- RPM Slider (custom-built for touch reliability) -->
     <div class="panel">
       <div class="label">RPM</div>
       <div class="value"><span id="rpmValue">200</span></div>
-      <div class="sliderContainer" id="rpmSlider">
-        <div class="sliderTrack">
-          <div class="sliderFill" id="rpmFill"></div>
-        </div>
+      <div class="sliderVisual">
+        <div class="sliderFill" id="rpmFill"></div>
         <div class="sliderThumb" id="rpmThumb"></div>
+      </div>
+      <div class="buttonRow">
+        <button class="btn" data-control="rpm" data-delta="-50">−50</button>
+        <button class="btn" data-control="rpm" data-delta="-10">−10</button>
+        <button class="btn" data-control="rpm" data-delta="10">+10</button>
+        <button class="btn" data-control="rpm" data-delta="50">+50</button>
       </div>
     </div>
 
-    <!-- Viscosity Knob -->
     <div class="panel">
       <div class="label">Viscosity</div>
-      <div class="knob" id="viscosityKnob" data-min="0.5" data-max="10" data-value="1.0"></div>
-      <div class="value"><span id="viscosityValue">1.0</span><span class="unit"> cP</span></div>
+      <div class="knobContainer">
+        <div class="knob" id="viscosityKnob"></div>
+        <div class="value"><span id="viscosityValue">1.0</span><span class="unit">cP</span></div>
+      </div>
+      <div class="buttonRow">
+        <button class="btn big" data-control="viscosity" data-delta="-0.5">−</button>
+        <button class="btn big" data-control="viscosity" data-delta="0.5">+</button>
+      </div>
     </div>
 
-    <!-- Aeration Knob -->
     <div class="panel">
       <div class="label">Aeration</div>
-      <div class="knob" id="aerationKnob" data-min="0" data-max="2" data-value="0.5"></div>
-      <div class="value"><span id="aerationValue">0.5</span><span class="unit"> vvm</span></div>
+      <div class="knobContainer">
+        <div class="knob" id="aerationKnob"></div>
+        <div class="value"><span id="aerationValue">0.5</span><span class="unit">vvm</span></div>
+      </div>
+      <div class="buttonRow">
+        <button class="btn big" data-control="aeration" data-delta="-0.1">−</button>
+        <button class="btn big" data-control="aeration" data-delta="0.1">+</button>
+      </div>
     </div>
   </div>
 
@@ -158,138 +199,56 @@
     const ws = new WebSocket(`ws://${location.host}`);
     let state = { rpm: 200, viscosity: 1.0, aeration: 0.5 };
 
+    const limits = {
+      rpm:       { min: 0,   max: 600, decimals: 0 },
+      viscosity: { min: 0.5, max: 10,  decimals: 1 },
+      aeration:  { min: 0,   max: 2,   decimals: 1 },
+    };
+
     function sendState() {
       if (ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(state));
       }
     }
 
-    // ============ CUSTOM SLIDER (works with both mouse + touch) ============
-    const sliderEl = document.getElementById('rpmSlider');
-    const fillEl = document.getElementById('rpmFill');
-    const thumbEl = document.getElementById('rpmThumb');
-    const rpmValueEl = document.getElementById('rpmValue');
+    function updateUI() {
+      const rpmPct = (state.rpm - limits.rpm.min) / (limits.rpm.max - limits.rpm.min);
+      document.getElementById('rpmFill').style.width = `${rpmPct * 100}%`;
+      document.getElementById('rpmThumb').style.left = `${rpmPct * 100}%`;
+      document.getElementById('rpmValue').textContent = Math.round(state.rpm);
 
-    const RPM_MIN = 0, RPM_MAX = 600;
+      const visPct = (state.viscosity - limits.viscosity.min) / (limits.viscosity.max - limits.viscosity.min);
+      document.getElementById('viscosityKnob').style.transform = `rotate(${-135 + visPct * 270}deg)`;
+      document.getElementById('viscosityValue').textContent = state.viscosity.toFixed(1);
 
-    function updateSliderUI(value) {
-      const pct = (value - RPM_MIN) / (RPM_MAX - RPM_MIN);
-      const containerRect = sliderEl.getBoundingClientRect();
-      const trackPadding = 30;
-      const trackWidth = containerRect.width - (trackPadding * 2);
-      const thumbX = trackPadding + (pct * trackWidth);
-      thumbEl.style.left = `${thumbX}px`;
-      fillEl.style.width = `${pct * 100}%`;
-      rpmValueEl.textContent = Math.round(value);
+      const aerPct = (state.aeration - limits.aeration.min) / (limits.aeration.max - limits.aeration.min);
+      document.getElementById('aerationKnob').style.transform = `rotate(${-135 + aerPct * 270}deg)`;
+      document.getElementById('aerationValue').textContent = state.aeration.toFixed(1);
     }
 
-    function setRpmFromTouch(clientX) {
-      const rect = sliderEl.getBoundingClientRect();
-      const trackPadding = 30;
-      const x = clientX - rect.left - trackPadding;
-      const trackWidth = rect.width - (trackPadding * 2);
-      const pct = Math.max(0, Math.min(1, x / trackWidth));
-      const value = RPM_MIN + pct * (RPM_MAX - RPM_MIN);
-      state.rpm = Math.round(value);
-      updateSliderUI(state.rpm);
-      sendState();
-    }
+    document.querySelectorAll('.btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const control = btn.dataset.control;
+        const delta = parseFloat(btn.dataset.delta);
+        const { min, max, decimals } = limits[control];
 
-    let sliderDragging = false;
+        let newValue = state[control] + delta;
+        newValue = Math.max(min, Math.min(max, newValue));
+        newValue = parseFloat(newValue.toFixed(decimals));
 
-    // Use pointer events — unified mouse + touch handling
-    sliderEl.addEventListener('pointerdown', (e) => {
-      sliderDragging = true;
-      sliderEl.setPointerCapture(e.pointerId);
-      setRpmFromTouch(e.clientX);
-      e.preventDefault();
-    });
-
-    sliderEl.addEventListener('pointermove', (e) => {
-      if (!sliderDragging) return;
-      setRpmFromTouch(e.clientX);
-      e.preventDefault();
-    });
-
-    sliderEl.addEventListener('pointerup', (e) => {
-      sliderDragging = false;
-      sliderEl.releasePointerCapture(e.pointerId);
-    });
-
-    sliderEl.addEventListener('pointercancel', () => {
-      sliderDragging = false;
-    });
-
-    // Init slider position
-    requestAnimationFrame(() => updateSliderUI(state.rpm));
-
-    // ============ KNOBS (drag up/down) ============
-    function setupKnob(knobEl, valueEl, stateKey, decimals = 1) {
-      const min = parseFloat(knobEl.dataset.min);
-      const max = parseFloat(knobEl.dataset.max);
-      let value = parseFloat(knobEl.dataset.value);
-
-      function updateRotation() {
-        const angle = -135 + ((value - min) / (max - min)) * 270;
-        knobEl.style.transform = `rotate(${angle}deg)`;
-        valueEl.textContent = value.toFixed(decimals);
-      }
-
-      let startY = 0;
-      let startValue = 0;
-      let dragging = false;
-
-      knobEl.addEventListener('pointerdown', (e) => {
-        dragging = true;
-        startY = e.clientY;
-        startValue = value;
-        knobEl.setPointerCapture(e.pointerId);
-        e.preventDefault();
-      });
-
-      knobEl.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        const deltaY = startY - e.clientY;  // up = increase
-        const range = max - min;
-        const newValue = startValue + (deltaY / 150) * range;
-        value = Math.max(min, Math.min(max, newValue));
-        updateRotation();
-        state[stateKey] = parseFloat(value.toFixed(decimals));
+        state[control] = newValue;
+        updateUI();
         sendState();
-        e.preventDefault();
       });
+    });
 
-      knobEl.addEventListener('pointerup', (e) => {
-        dragging = false;
-        knobEl.releasePointerCapture(e.pointerId);
-      });
-
-      knobEl.addEventListener('pointercancel', () => {
-        dragging = false;
-      });
-
-      updateRotation();
-    }
-
-    setupKnob(
-      document.getElementById('viscosityKnob'),
-      document.getElementById('viscosityValue'),
-      'viscosity', 1
-    );
-    setupKnob(
-      document.getElementById('aerationKnob'),
-      document.getElementById('aerationValue'),
-      'aeration', 1
-    );
-
-    // Listen for state updates from server
     ws.onmessage = (event) => {
       const s = JSON.parse(event.data);
-      if (s.rpm !== undefined && !sliderDragging) {
-        state.rpm = s.rpm;
-        updateSliderUI(s.rpm);
-      }
+      state = { ...state, ...s };
+      updateUI();
     };
+
+    updateUI();
   </script>
 </body>
 </html>
