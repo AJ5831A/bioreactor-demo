@@ -275,15 +275,26 @@
     window.addEventListener('mousemove', (e) => { if (mouseDown) applyRpm(e.clientX); });
     window.addEventListener('mouseup',   () => { mouseDown = false; });
 
-    // --- Knob vertical drag (touch + mouse) ---
+    // --- Knob rotational drag (touch + mouse) ---
+    function getAngleFromCenter(knob, clientX, clientY) {
+      const rect = knob.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      return Math.atan2(clientY - cy, clientX - cx) * (180 / Math.PI);
+    }
+
     function setupKnobDrag(knobId, control) {
       const knob = document.getElementById(knobId);
-      let startY, startVal;
+      let startAngle, startVal, dragging = false;
 
-      function applyDrag(currentY) {
+      function applyRotation(clientX, clientY) {
         const { min, max, decimals } = limits[control];
-        const delta = ((startY - currentY) / 160) * (max - min);
-        let v = Math.max(min, Math.min(max, parseFloat((startVal + delta).toFixed(decimals))));
+        let angleDelta = getAngleFromCenter(knob, clientX, clientY) - startAngle;
+        // wrap angle delta to [-180, 180] to avoid jumps
+        if (angleDelta > 180)  angleDelta -= 360;
+        if (angleDelta < -180) angleDelta += 360;
+        const valueDelta = (angleDelta / 270) * (max - min);
+        const v = Math.max(min, Math.min(max, parseFloat((startVal + valueDelta).toFixed(decimals))));
         state[control] = v;
         updateUI();
         sendState();
@@ -291,19 +302,20 @@
 
       knob.addEventListener('touchstart', (e) => {
         e.preventDefault();
-        startY = e.touches[0].clientY;
+        startAngle = getAngleFromCenter(knob, e.touches[0].clientX, e.touches[0].clientY);
         startVal = state[control];
       }, { passive: false });
       knob.addEventListener('touchmove', (e) => {
         e.preventDefault();
-        applyDrag(e.touches[0].clientY);
+        applyRotation(e.touches[0].clientX, e.touches[0].clientY);
       }, { passive: false });
 
-      let dragging = false;
       knob.addEventListener('mousedown', (e) => {
-        dragging = true; startY = e.clientY; startVal = state[control];
+        dragging = true;
+        startAngle = getAngleFromCenter(knob, e.clientX, e.clientY);
+        startVal = state[control];
       });
-      window.addEventListener('mousemove', (e) => { if (dragging) applyDrag(e.clientY); });
+      window.addEventListener('mousemove', (e) => { if (dragging) applyRotation(e.clientX, e.clientY); });
       window.addEventListener('mouseup',   () => { dragging = false; });
     }
 
