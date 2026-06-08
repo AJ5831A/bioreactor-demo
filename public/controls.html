@@ -77,7 +77,6 @@
       height: 100%;
       background: linear-gradient(90deg, #4dd0e1, #4dd0e1cc);
       border-radius: 7px;
-      transition: width 0.2s ease;
     }
     .sliderThumb {
       position: absolute;
@@ -88,7 +87,11 @@
       border-radius: 50%;
       transform: translate(-50%, -50%);
       box-shadow: 0 0 20px rgba(77, 208, 225, 0.6);
-      transition: left 0.2s ease;
+    }
+    .sliderVisual {
+      cursor: pointer;
+      padding: 12px 0;
+      margin: -12px 0;
     }
 
     .buttonRow {
@@ -248,7 +251,66 @@
       updateUI();
     };
 
+    // --- RPM slider drag (touch + mouse) ---
+    const rpmSlider = document.querySelector('.sliderVisual');
+
+    function rpmFromX(clientX) {
+      const rect = rpmSlider.getBoundingClientRect();
+      const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      const { min, max, decimals } = limits.rpm;
+      return parseFloat((min + pct * (max - min)).toFixed(decimals));
+    }
+
+    function applyRpm(clientX) {
+      state.rpm = rpmFromX(clientX);
+      updateUI();
+      sendState();
+    }
+
+    rpmSlider.addEventListener('touchstart', (e) => { e.preventDefault(); applyRpm(e.touches[0].clientX); }, { passive: false });
+    rpmSlider.addEventListener('touchmove',  (e) => { e.preventDefault(); applyRpm(e.touches[0].clientX); }, { passive: false });
+
+    let mouseDown = false;
+    rpmSlider.addEventListener('mousedown', (e) => { mouseDown = true; applyRpm(e.clientX); });
+    window.addEventListener('mousemove', (e) => { if (mouseDown) applyRpm(e.clientX); });
+    window.addEventListener('mouseup',   () => { mouseDown = false; });
+
+    // --- Knob vertical drag (touch + mouse) ---
+    function setupKnobDrag(knobId, control) {
+      const knob = document.getElementById(knobId);
+      let startY, startVal;
+
+      function applyDrag(currentY) {
+        const { min, max, decimals } = limits[control];
+        const delta = ((startY - currentY) / 160) * (max - min);
+        let v = Math.max(min, Math.min(max, parseFloat((startVal + delta).toFixed(decimals))));
+        state[control] = v;
+        updateUI();
+        sendState();
+      }
+
+      knob.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        startY = e.touches[0].clientY;
+        startVal = state[control];
+      }, { passive: false });
+      knob.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        applyDrag(e.touches[0].clientY);
+      }, { passive: false });
+
+      let dragging = false;
+      knob.addEventListener('mousedown', (e) => {
+        dragging = true; startY = e.clientY; startVal = state[control];
+      });
+      window.addEventListener('mousemove', (e) => { if (dragging) applyDrag(e.clientY); });
+      window.addEventListener('mouseup',   () => { dragging = false; });
+    }
+
+    setupKnobDrag('viscosityKnob', 'viscosity');
+    setupKnobDrag('aerationKnob', 'aeration');
+
     updateUI();
-  </script>
+</script>
 </body>
 </html>
